@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -245,7 +246,10 @@ func (f *FFmpeg) ExtractAudio(params *ExtractAudioParams) error {
 	defer os.Setenv("FFMPEG_PATH", origFfmpegPath)
 
 	// 创建命令
-	cmd := exec.Command(f.FFmpegPath, "-i", params.InputPath, "-vn", "-acodec", "copy", params.OutputPath)
+	cmd := exec.Command(f.FFmpegPath, "-y", "-i", params.InputPath, "-vn", "-acodec", "libmp3lame", params.OutputPath)
+
+	//打印命令
+	fmt.Println(cmd.String())
 
 	// 处理输出
 	stderr, err := cmd.StderrPipe()
@@ -555,18 +559,24 @@ func (f *FFmpeg) GetVideoDuration(inputPath string) (int64, error) {
 		return 0, err
 	}
 
-	// 解析输出获取时长
-	lines := strings.Split(probeOutput, "\n")
-	var duration string
-	for _, line := range lines {
-		if strings.HasPrefix(line, "format_duration=") {
-			duration = strings.TrimPrefix(line, "format_duration=")
-			break
-		}
+	// 解析JSON输出获取时长
+	var probeResult map[string]interface{}
+	if err := json.Unmarshal([]byte(probeOutput), &probeResult); err != nil {
+		return 0, fmt.Errorf("failed to parse probe output: %w", err)
 	}
 
-	if duration == "" {
-		return 0, fmt.Errorf("failed to get duration")
+	// 打印输出JSON数据
+	fmt.Printf("Probe Output JSON: %+v\n", probeResult)
+
+	// 从map中获取时长
+	format, ok := probeResult["format"].(map[string]interface{})
+	if !ok {
+		return 0, fmt.Errorf("failed to get format from probe output")
+	}
+
+	duration, ok := format["duration"].(string)
+	if !ok || duration == "" {
+		return 0, fmt.Errorf("failed to get duration from probe output")
 	}
 
 	// 转换时长字符串为秒数（浮点数）
