@@ -1,4 +1,4 @@
-package ffmpeg_tools
+package ffmpeg
 
 import (
 	"fmt"
@@ -11,9 +11,8 @@ import (
 	"strings"
 
 	ffmpeg_go "github.com/u2takey/ffmpeg-go"
+	"github.com/yxx1912008/linker-ffmpeg-go/internal/ffmpeg"
 )
-
-var ffmpegBinary []byte
 
 // extractFFmpeg 提取FFmpeg二进制文件到指定路径
 // 如果extractPath为空，则使用临时目录
@@ -45,7 +44,8 @@ func extractFFmpeg(extractPath string) (string, error) {
 		return outputPath, nil
 	}
 
-	// 直接使用已经初始化的ffmpegBinary变量
+	// 获取内部嵌入的FFmpeg二进制数据
+	ffmpegBinary := ffmpeg.GetFFmpegBinary()
 	if len(ffmpegBinary) == 0 {
 		// 如果二进制数据为空，返回空路径，让用户自行设置
 		return "", nil
@@ -75,13 +75,39 @@ func extractFFmpeg(extractPath string) (string, error) {
 }
 
 // NewFFmpeg 创建并初始化FFmpeg工具
-// 保持向后兼容，extractPath默认为空（使用临时目录）
+// 使用默认的临时目录来释放FFmpeg二进制文件
+// 参数:
+//
+//	callback: 进度回调函数，用于接收处理进度信息
+//
+// 返回值:
+//
+//	*FFmpeg: FFmpeg工具实例
+//	error: 如果初始化失败，返回错误信息
+//
+// 示例:
+//
+//	ffmpeg, err := ffmpeg.NewFFmpeg(func(progress *ffmpeg.Progress) {
+//	    fmt.Printf("Progress: %.2f%%\n", progress.Percentage)
+//	})
 func NewFFmpeg(callback ProgressCallback) (*FFmpeg, error) {
 	return NewFFmpegWithExtractPath("", callback)
 }
 
 // NewFFmpegWithExtractPath 使用指定释放路径创建FFmpeg工具
-// extractPath: FFmpeg二进制文件释放路径，为空则使用临时目录
+// 参数:
+//
+//	extractPath: FFmpeg二进制文件释放路径，为空则使用临时目录
+//	callback: 进度回调函数，用于接收处理进度信息
+//
+// 返回值:
+//
+//	*FFmpeg: FFmpeg工具实例
+//	error: 如果初始化失败，返回错误信息
+//
+// 示例:
+//
+//	ffmpeg, err := ffmpeg.NewFFmpegWithExtractPath("/tmp/ffmpeg", callback)
 func NewFFmpegWithExtractPath(extractPath string, callback ProgressCallback) (*FFmpeg, error) {
 	// 提取FFmpeg到指定路径
 	ffmpegPath, err := extractFFmpeg(extractPath)
@@ -96,7 +122,20 @@ func NewFFmpegWithExtractPath(extractPath string, callback ProgressCallback) (*F
 	}, nil
 }
 
-// NewFFmpegWithPath 使用指定路径创建FFmpeg工具
+// NewFFmpegWithPath 使用指定路径的FFmpeg二进制文件创建FFmpeg工具
+// 参数:
+//
+//	ffmpegPath: 已存在的FFmpeg二进制文件路径
+//	callback: 进度回调函数，用于接收处理进度信息
+//
+// 返回值:
+//
+//	*FFmpeg: FFmpeg工具实例
+//	error: 如果FFmpeg路径不存在或无效，返回错误信息
+//
+// 示例:
+//
+//	ffmpeg, err := ffmpeg.NewFFmpegWithPath("/usr/bin/ffmpeg", callback)
 func NewFFmpegWithPath(ffmpegPath string, callback ProgressCallback) (*FFmpeg, error) {
 	// 检查指定的FFmpeg路径是否存在
 	if _, err := os.Stat(ffmpegPath); os.IsNotExist(err) {
@@ -109,12 +148,26 @@ func NewFFmpegWithPath(ffmpegPath string, callback ProgressCallback) (*FFmpeg, e
 	}, nil
 }
 
-// 设置FFmpeg路径
+// SetFFmpegPath 设置FFmpeg二进制文件路径
+// 参数:
+//
+//	path: FFmpeg二进制文件路径
+//
+// 返回值:
+//
+//	无
 func (f *FFmpeg) SetFFmpegPath(path string) {
 	f.FFmpegPath = path
 }
 
-// 设置进度回调
+// SetProgressCallback 设置进度回调函数
+// 参数:
+//
+//	callback: 进度回调函数，用于接收处理进度信息
+//
+// 返回值:
+//
+//	无
 func (f *FFmpeg) SetProgressCallback(callback ProgressCallback) {
 	f.Callback = callback
 }
@@ -170,7 +223,21 @@ func (f *FFmpeg) parseProgress(output string) {
 	})
 }
 
-// ExtractAudio 提取音频流
+// ExtractAudio 从视频文件中提取音频流
+// 参数:
+//
+//	params: 提取音频流的参数配置
+//
+// 返回值:
+//
+//	error: 如果提取失败，返回错误信息
+//
+// 示例:
+//
+//	err := ffmpeg.ExtractAudio(&ffmpeg.ExtractAudioParams{
+//	    InputPath:  "input.mp4",
+//	    OutputPath: "output.mp3",
+//	})
 func (f *FFmpeg) ExtractAudio(params *ExtractAudioParams) error {
 	// 设置环境变量指定ffmpeg路径
 	origFfmpegPath := os.Getenv("FFMPEG_PATH")
@@ -232,7 +299,24 @@ func (f *FFmpeg) ExtractAudio(params *ExtractAudioParams) error {
 	return nil
 }
 
-// SplitVideo 视频分段
+// SplitVideo 将视频文件分割为多个小段
+// 参数:
+//
+//	params: 视频分段的参数配置
+//
+// 返回值:
+//
+//	[]string: 分段后的视频文件路径列表
+//	error: 如果分段失败，返回错误信息
+//
+// 示例:
+//
+//	segments, err := ffmpeg.SplitVideo(&ffmpeg.SplitVideoParams{
+//	    InputPath:    "input.mp4",
+//	    OutputDir:    "/tmp/segments",
+//	    SegmentTime:  10, // 每10秒一个分段
+//	    OutputPrefix: "segment_",
+//	})
 func (f *FFmpeg) SplitVideo(params *SplitVideoParams) ([]string, error) {
 	// 设置环境变量指定ffmpeg路径
 	origFfmpegPath := os.Getenv("FFMPEG_PATH")
@@ -339,7 +423,24 @@ func (f *FFmpeg) SplitVideo(params *SplitVideoParams) ([]string, error) {
 	return segmentFiles, nil
 }
 
-// ExtractKeyFrames 提取关键帧
+// ExtractKeyFrames 从视频文件中提取关键帧
+// 参数:
+//
+//	params: 提取关键帧的参数配置
+//
+// 返回值:
+//
+//	[]string: 提取的关键帧文件路径列表
+//	error: 如果提取失败，返回错误信息
+//
+// 示例:
+//
+//	keyframes, err := ffmpeg.ExtractKeyFrames(&ffmpeg.ExtractKeyFramesParams{
+//	    InputPath:     "input.mp4",
+//	    OutputDir:     "/tmp/keyframes",
+//	    FrameInterval: 5, // 每5秒提取一个关键帧
+//	    OutputPrefix:  "keyframe_",
+//	})
 func (f *FFmpeg) ExtractKeyFrames(params *ExtractKeyFramesParams) ([]string, error) {
 	// 设置环境变量指定ffmpeg路径
 	origFfmpegPath := os.Getenv("FFMPEG_PATH")
@@ -429,7 +530,19 @@ func (f *FFmpeg) ExtractKeyFrames(params *ExtractKeyFramesParams) ([]string, err
 	return keyFrameFiles, nil
 }
 
-// GetVideoDuration 获取视频时长
+// GetVideoDuration 获取视频文件的时长
+// 参数:
+//
+//	inputPath: 输入视频文件路径
+//
+// 返回值:
+//
+//	int64: 视频时长，单位为毫秒
+//	error: 如果获取失败，返回错误信息
+//
+// 示例:
+//
+//	duration, err := ffmpeg.GetVideoDuration("input.mp4")
 func (f *FFmpeg) GetVideoDuration(inputPath string) (int64, error) {
 	// 设置环境变量指定ffmpeg路径
 	origFfmpegPath := os.Getenv("FFMPEG_PATH")

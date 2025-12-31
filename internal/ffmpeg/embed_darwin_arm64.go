@@ -1,6 +1,6 @@
 //go:build darwin && arm64
 
-package ffmpeg_tools
+package ffmpeg
 
 import _ "embed"
 
