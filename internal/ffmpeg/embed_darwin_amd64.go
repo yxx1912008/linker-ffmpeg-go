@@ -4,13 +4,13 @@ package ffmpeg
 
 import _ "embed"
 
-//go:embed bin/ffmpeg_darwin_amd64
-var ffmpegMacx64Binary []byte
+//go:embed bin/ffmpeg_darwin_amd64.gz
+var ffmpegMacx64CompressedBinary []byte
 
-//go:embed bin/ffprobe_darwin_amd64
-var ffprobeMacx64Binary []byte
+//go:embed bin/ffprobe_darwin_amd64.gz
+var ffprobeMacx64CompressedBinary []byte
 
 func init() {
-	ffmpegBinary = ffmpegMacx64Binary
-	ffprobeBinary = ffprobeMacx64Binary
+	ffmpegCompressedBinary = ffmpegMacx64CompressedBinary
+	ffprobeCompressedBinary = ffprobeMacx64CompressedBinary
 }

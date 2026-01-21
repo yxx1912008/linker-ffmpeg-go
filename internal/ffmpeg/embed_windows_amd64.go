@@ -6,13 +6,13 @@ import (
 	_ "embed"
 )
 
-//go:embed bin/ffmpeg_windows_amd64.exe
-var ffmpegWindowsx64Binary []byte
+//go:embed bin/ffmpeg_windows_amd64.exe.gz
+var ffmpegWindowsx64CompressedBinary []byte
 
-//go:embed bin/ffprobe_windows_amd64.exe
-var ffprobeWindowsx64Binary []byte
+//go:embed bin/ffprobe_windows_amd64.exe.gz
+var ffprobeWindowsx64CompressedBinary []byte
 
 func init() {
-	ffmpegBinary = ffmpegWindowsx64Binary
-	ffprobeBinary = ffprobeWindowsx64Binary
+	ffmpegCompressedBinary = ffmpegWindowsx64CompressedBinary
+	ffprobeCompressedBinary = ffprobeWindowsx64CompressedBinary
 }
