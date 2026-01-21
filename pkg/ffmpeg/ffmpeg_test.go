@@ -79,24 +79,38 @@ func TestNewFFmpegWithPath(t *testing.T) {
 			progress.Percentage, progress.Current, progress.Total, progress.Status)
 	}
 
-	// 使用一个临时文件作为模拟的FFmpeg路径
-	tempFile, err := os.CreateTemp("", "ffmpeg_test")
+	// 使用临时文件作为模拟的FFmpeg路径
+	tempFFmpegFile, err := os.CreateTemp("", "ffmpeg_test")
 	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
+		t.Fatalf("Failed to create temp file for ffmpeg: %v", err)
 	}
-	tempPath := tempFile.Name()
-	tempFile.Close()
-	defer os.Remove(tempPath)
+	tempFFmpegPath := tempFFmpegFile.Name()
+	tempFFmpegFile.Close()
+	defer os.Remove(tempFFmpegPath)
 
-	// 创建FFmpeg实例
-	ffmpeg, err := NewFFmpegWithPath(tempPath, callback)
+	// 使用临时文件作为模拟的FFprobe路径
+	tempFFprobeFile, err := os.CreateTemp("", "ffprobe_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp file for ffprobe: %v", err)
+	}
+	tempFFprobePath := tempFFprobeFile.Name()
+	tempFFprobeFile.Close()
+	defer os.Remove(tempFFprobePath)
+
+	// 创建FFmpeg实例（同时指定ffmpeg和ffprobe路径）
+	ffmpeg, err := NewFFmpegWithPath(tempFFmpegPath, tempFFprobePath, callback)
 	if err != nil {
 		t.Fatalf("Failed to create FFmpeg instance with path: %v", err)
 	}
 
 	// 检查FFmpeg路径是否正确设置
-	if ffmpeg.FFmpegPath != tempPath {
-		t.Fatalf("Expected FFmpeg path to be %s, got %s", tempPath, ffmpeg.FFmpegPath)
+	if ffmpeg.FFmpegPath != tempFFmpegPath {
+		t.Fatalf("Expected FFmpeg path to be %s, got %s", tempFFmpegPath, ffmpeg.FFmpegPath)
+	}
+
+	// 检查FFprobe路径是否正确设置
+	if ffmpeg.FFprobePath != tempFFprobePath {
+		t.Fatalf("Expected FFprobe path to be %s, got %s", tempFFprobePath, ffmpeg.FFprobePath)
 	}
 
 	// 检查回调是否设置
@@ -104,7 +118,19 @@ func TestNewFFmpegWithPath(t *testing.T) {
 		t.Fatal("Callback is nil")
 	}
 
-	t.Logf("FFmpeg instance created successfully with path: %s", ffmpeg.FFmpegPath)
+	t.Logf("FFmpeg instance created successfully with path: %s, ffprobe path: %s", ffmpeg.FFmpegPath, ffmpeg.FFprobePath)
+
+	// 测试只指定ffmpeg路径，ffprobe路径为空的情况
+	ffmpegOnly, err := NewFFmpegWithPath(tempFFmpegPath, "", callback)
+	if err != nil {
+		t.Fatalf("Failed to create FFmpeg instance with only ffmpeg path: %v", err)
+	}
+
+	if ffmpegOnly.FFprobePath != "" {
+		t.Fatalf("Expected FFprobe path to be empty, got %s", ffmpegOnly.FFprobePath)
+	}
+
+	t.Log("FFmpeg instance with only ffmpeg path created successfully")
 }
 
 // TestSetFFmpegPath 测试设置FFmpeg路径

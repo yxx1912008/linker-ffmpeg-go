@@ -75,6 +75,66 @@ func extractFFmpeg(extractPath string) (string, error) {
 	return outputPath, nil
 }
 
+// extractFFprobe 提取FFprobe二进制文件到指定路径
+// 如果extractPath为空，则使用临时目录
+func extractFFprobe(extractPath string) (string, error) {
+	// 确定释放目录
+	var outputDir string
+	if extractPath != "" {
+		outputDir = extractPath
+		// 确保释放目录存在
+		if err := os.MkdirAll(outputDir, 0755); err != nil {
+			return "", fmt.Errorf("failed to create extract directory: %w", err)
+		}
+	} else {
+		// 使用临时目录
+		outputDir = os.TempDir()
+	}
+
+	// 根据平台获取FFprobe文件名
+	ffprobeFileName := "ffprobe"
+	if runtime.GOOS == "windows" {
+		ffprobeFileName += ".exe"
+	}
+	// 构建输出路径
+	outputPath := filepath.Join(outputDir, ffprobeFileName)
+
+	// 检查文件是否已存在
+	if _, err := os.Stat(outputPath); err == nil {
+		// 文件已存在，返回路径
+		return outputPath, nil
+	}
+
+	// 获取内部嵌入的FFprobe二进制数据
+	ffprobeBinary := ffmpeg.GetFFprobeBinary()
+	if len(ffprobeBinary) == 0 {
+		// 如果二进制数据为空，返回空路径，让用户自行设置
+		return "", nil
+	}
+
+	// 创建输出文件
+	outFile, err := os.Create(outputPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer outFile.Close()
+
+	// 写入二进制数据
+	_, err = outFile.Write(ffprobeBinary)
+	if err != nil {
+		return "", fmt.Errorf("failed to write file content: %w", err)
+	}
+
+	// 设置执行权限
+	if runtime.GOOS != "windows" {
+		if err := outFile.Chmod(0755); err != nil {
+			return "", fmt.Errorf("failed to set executable permission: %w", err)
+		}
+	}
+
+	return outputPath, nil
+}
+
 // NewFFmpeg 创建并初始化FFmpeg工具
 // 使用默认的临时目录来释放FFmpeg二进制文件
 // 参数:
@@ -98,7 +158,7 @@ func NewFFmpeg(callback ProgressCallback) (*FFmpeg, error) {
 // NewFFmpegWithExtractPath 使用指定释放路径创建FFmpeg工具
 // 参数:
 //
-//	extractPath: FFmpeg二进制文件释放路径，为空则使用临时目录
+//	extractPath: 二进制文件释放路径，为空则使用临时目录
 //	callback: 进度回调函数，用于接收处理进度信息
 //
 // 返回值:
@@ -116,8 +176,15 @@ func NewFFmpegWithExtractPath(extractPath string, callback ProgressCallback) (*F
 		return nil, err
 	}
 
+	// 提取FFprobe到指定路径
+	ffprobePath, err := extractFFprobe(extractPath)
+	if err != nil {
+		return nil, err
+	}
+
 	return &FFmpeg{
 		FFmpegPath:  ffmpegPath,
+		FFprobePath: ffprobePath,
 		ExtractPath: extractPath,
 		Callback:    callback,
 	}, nil
@@ -127,6 +194,7 @@ func NewFFmpegWithExtractPath(extractPath string, callback ProgressCallback) (*F
 // 参数:
 //
 //	ffmpegPath: 已存在的FFmpeg二进制文件路径
+//	ffprobePath: 已存在的FFprobe二进制文件路径（可选，为空则不设置）
 //	callback: 进度回调函数，用于接收处理进度信息
 //
 // 返回值:
@@ -136,16 +204,24 @@ func NewFFmpegWithExtractPath(extractPath string, callback ProgressCallback) (*F
 //
 // 示例:
 //
-//	ffmpeg, err := ffmpeg.NewFFmpegWithPath("/usr/bin/ffmpeg", callback)
-func NewFFmpegWithPath(ffmpegPath string, callback ProgressCallback) (*FFmpeg, error) {
+//	ffmpeg, err := ffmpeg.NewFFmpegWithPath("/usr/bin/ffmpeg", "/usr/bin/ffprobe", callback)
+func NewFFmpegWithPath(ffmpegPath string, ffprobePath string, callback ProgressCallback) (*FFmpeg, error) {
 	// 检查指定的FFmpeg路径是否存在
 	if _, err := os.Stat(ffmpegPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("ffmpeg executable not found at: %s", ffmpegPath)
 	}
 
+	// 检查指定的FFprobe路径是否存在（如果提供了路径）
+	if ffprobePath != "" {
+		if _, err := os.Stat(ffprobePath); os.IsNotExist(err) {
+			return nil, fmt.Errorf("ffprobe executable not found at: %s", ffprobePath)
+		}
+	}
+
 	return &FFmpeg{
-		FFmpegPath: ffmpegPath,
-		Callback:   callback,
+		FFmpegPath:  ffmpegPath,
+		FFprobePath: ffprobePath,
+		Callback:    callback,
 	}, nil
 }
 
@@ -159,6 +235,34 @@ func NewFFmpegWithPath(ffmpegPath string, callback ProgressCallback) (*FFmpeg, e
 //	无
 func (f *FFmpeg) SetFFmpegPath(path string) {
 	f.FFmpegPath = path
+}
+
+// GetFFmpegPath 获取FFmpeg二进制文件路径
+// 返回值:
+//
+//	string: FFmpeg二进制文件路径
+func (f *FFmpeg) GetFFmpegPath() string {
+	return f.FFmpegPath
+}
+
+// SetFFprobePath 设置FFprobe二进制文件路径
+// 参数:
+//
+//	path: FFprobe二进制文件路径
+//
+// 返回值:
+//
+//	无
+func (f *FFmpeg) SetFFprobePath(path string) {
+	f.FFprobePath = path
+}
+
+// GetFFprobePath 获取FFprobe二进制文件路径
+// 返回值:
+//
+//	string: FFprobe二进制文件路径
+func (f *FFmpeg) GetFFprobePath() string {
+	return f.FFprobePath
 }
 
 // SetProgressCallback 设置进度回调函数
